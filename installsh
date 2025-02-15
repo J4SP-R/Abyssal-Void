@@ -172,3 +172,6 @@ enable_services() {
 
 }
 
+# Call service enabler
+enable_services
+
