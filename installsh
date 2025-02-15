@@ -1,0 +1,174 @@
+#!/bin/bash
+# Welcome prompt for JSX-Abyssal Void post install auto setup
+echo "Welcome to the JSX-Abyssal Void Post Install Auto Setup!"
+echo "This is an automated setup. if you are not 100% sure you want to do this, abort now."
+
+
+# Function to check internet connection by pinging voidlinux.org
+check_internet() {
+    echo "Checking internet connection..."
+    if ping -c 1 voidlinux.org &>/dev/null; then
+        echo "Internet connection is active."
+        return 0
+    else
+        echo "Networking not properly configured. Aborting setup."
+        exit 1
+        fi
+    fi
+}
+
+# Call the function to check internet connection
+check_internet
+
+
+read -p "Do you really want to run the installer? (Yes/No): " answer
+case $answer in
+    [Yy]* ) echo "Starting the installation...";;
+    [Nn]* ) echo "Exiting the program cleanly." >&2; exit 1;;
+    * ) echo "Invalid input. Please enter Yes or No.";;
+esac
+
+
+# Function to check if the script is run as sudo
+check_sudo() {
+    if [ "$EUID" -ne 0 ]; then
+        echo "This script must be run as root. Please re-run the program as sudo."
+        exit 1
+    fi
+}
+
+# Call the function to check for sudo privileges
+check_sudo
+
+
+# adding required REPOS
+sudo xbps-install -Sy void-repo-nonfree void-repo-multilib void-repo-multilib-nonfree
+
+# Syncing repos and updating
+sudo xbps-install -Syu
+
+# Install GPU drivers
+install_gpu_driver() {
+    gpu_driver=""
+    case "$(lspci | grep -E 'VGA|3D')" in
+        *Intel*) gpu_driver="mesa-dri intel-video-accel vulkan-loader mesa-vulkan-intel" ;;
+        *AMD*)   gpu_driver="mesa-dri mesa-vaapi mesa-vdpau vulkan-loader mesa-vulkan-radeon" ;;
+        *NVIDIA*)gpu_driver="mesa-dri nvidia nvidia-libs-32bit" ;;
+    esac
+    for pkg in $gpu_driver; do
+        [ -n "$pkg" ] && sudo xbps-install -Sy "$pkg"
+    done
+}
+
+install_gpu_driver
+
+
+
+# Install CPU microcode updates
+intel_cpu_microcode() {
+    if lspci | grep -q 'Intel'; then
+        sudo xbps-install -y intel-ucode
+        sudo xbps-reconfigure -f linux-$(uname -r)
+    fi
+}
+
+# Function to install packages listed in a file
+install_core_packages() {
+    pkglist=$(paste -sd' ' < packages.txt)
+    sudo xbps-install -Sy "$pkglist" || echo "Failed to install some packages"
+}
+
+# Call the function to install the packages
+install_core_packages
+
+
+# Enable and set up NIX package manager
+nix_setup() {
+    sudo ln -s /etc/sv/nix-daemon /var/service
+    source /etc/profile
+    nix-channel --add https://nixos.org/channels/nixos-24.11 nixpkgs
+    nix-channel --update
+}
+
+# Call the nix setup function
+nix_setup
+
+# Install required NIX packages
+nix_install_deps() {
+    export NIXPKGS_ALLOW_UNFREE=1
+    nix-env -iA nixpkgs.grimblast nixpkgs.matugen nixpkgs.uwsm nixpkgs.ueberzugpp nixpkgs.hyprland nixpkgs.hyprlock nixpkgs.hypridle nixpkgs.hyprpicker
+}
+
+# Call the nix install function
+nix_install_deps
+
+# Installing the other stuff not in the repo
+install_fabric() {
+    mkdir ~/.config/fabric
+    cd $HOME/.config/fabric
+    python3 -m venv --system-site-packages venv
+    source venv/bin/activate
+    pip3 install git+https://github.com/Fabric-Development/fabric.git
+    deactivate
+    cd $HOME
+}
+
+# Call fabric installer
+install_fabric
+
+# Installing fabric-CLI
+install_fabric_cli() {
+    mkdir gits
+    cd gits
+    git clone https://github.com/Fabric-Development/fabric-cli.git
+    cd fabric-cli
+    meson setup --buildtype=release --prefix=/usr build && sudo meson install -C build
+    cd $HOME
+}
+
+# Call fabric-cli installer
+install_fabric_cli
+
+# Install Gray for fabric
+install_gray() {
+    cd gits
+    git clone https://github.com/Fabric-Development/gray.git
+    cd gray
+    meson --prefix=/usr build && sudo ninja -C build install
+}
+
+# Call Gray install
+install_gray
+
+
+# Fetching Ax-Shell
+fetch_ax_shell() {
+    git clone https://github.com/Axenide/Ax-Shell.git ~/.config/Ax-Shell
+}
+
+# Call Ax-Shell fetch
+fetch_ax_shell
+
+# Fetch my user configs
+fetch_my_configs() {
+    git clone INSTERT
+    ./path/to/installer
+}
+
+# Call user config fetch
+fetch_my_configs
+
+# Enable services
+enable_services() {
+    # Remove wpa and dhcpcd
+    sudo rm /var/service/wpa_supplicant
+    sudo rm /var/service/dhcpcd
+
+    # dbus
+    sudo ln -s /etc/sv/dbus /var/service
+
+    # Enable NetworkManager
+    sudo ln -s /etc/sv/NetworkManager /var/service
+
+}
+
