@@ -63,6 +63,66 @@ install_gpu_driver() {
 install_gpu_driver
 
 
+# Set MODESETTING and DRM if it is an NVIDIA GPU
+
+
+# Function to check if an NVIDIA GPU is present
+check_nvidia_gpu() {
+    lspci -k | grep -EA3 'VGA|3D|Display' | grep -i nvidia &> /dev/null
+    return $?
+}
+
+# Function to edit /etc/default/grub
+edit_grub_config() {
+    GRUB_FILE="/etc/default/grub"
+    KERNEL_PARAMS="nvidia_drm.modeset=1 nvidia_drm.fbdev=1 nvidia.NVreg_PreserveVideoMemoryAllocations=1"
+
+    # Backup the original GRUB file
+    cp $GRUB_FILE ${GRUB_FILE}.bak
+
+    # Check if 'GRUB_CMDLINE_LINUX_DEFAULT' already contains the necessary kernel parameters
+    if ! grep -q "$KERNEL_PARAMS" $GRUB_FILE; then
+        # Append the kernel parameters if not already present
+        sed -i "s/^GRUB_CMDLINE_LINUX_DEFAULT=\"\(.*\)\"/GRUB_CMDLINE_LINUX_DEFAULT=\"\1 $KERNEL_PARAMS\"/" $GRUB_FILE
+    fi
+}
+
+# Function to update GRUB
+update_grub() {
+    sudo update-grub
+}
+
+
+# Function to configure dracut for NVIDIA DRM
+configure_dracut() {
+    DRACUT_CONF_DIR="/etc/dracut.conf.d"
+    NVIDIA_CONF_FILE="$DRACUT_CONF_DIR/nvidia.conf"
+    DRIVERS='add_drivers+=" nvidia nvidia-drm nvidia-modeset nvidia-uvm "'
+
+    # Create the dracut configuration directory if it doesn't exist
+    if [ ! -d "$DRACUT_CONF_DIR" ]; then
+        sudo mkdir -p "$DRACUT_CONF_DIR"
+    fi
+
+    # Create the nvidia.conf file with the necessary drivers
+    echo "$DRIVERS" | sudo tee "$NVIDIA_CONF_FILE" > /dev/null
+
+    # Regenerate the initramfs to apply the changes
+    sudo dracut -f
+}
+
+
+
+# Main script execution
+if check_nvidia_gpu; then
+    echo "NVIDIA GPU detected. Editing GRUB configuration and configuring Dracut for DRM..."
+    edit_grub_config
+    update_grub
+    echo "GRUB configuration updated successfully."
+    configure_dracut
+    echo "dracut configuration updated successfully."
+fi
+
 
 # Install CPU microcode updates
 intel_cpu_microcode() {
@@ -170,8 +230,31 @@ enable_services() {
     # Enable NetworkManager
     sudo ln -s /etc/sv/NetworkManager /var/service
 
+    # Setting up PIPEWIRE and WIREPLUMBER
+    sudo mkdir -p /etc/pipewire/pipewire.conf.d
+    sudo ln -s /usr/share/examples/wireplumber/10-wireplumber.conf /etc/pipewire/pipewire.conf.d/
+    sudo ln -s /usr/share/examples/pipewire/20-pipewire-pulse.conf /etc/pipewire/pipewire.conf.d/
+
+    # Setting up ALSA compatibility
+    sudo mkdir -p /etc/alsa/conf.d
+    sudo ln -s /usr/share/alsa/alsa.conf.d/50-pipewire.conf /etc/alsa/conf.d
+    ln -s /usr/share/alsa/alsa.conf.d/99-pipewire-default.conf /etc/alsa/conf.d
 }
 
 # Call service enabler
 enable_services
 
+
+# Function to ask the user if they want to reboot now
+ask_reboot() {
+    read -p "Do you want to reboot the system now? (y/n): " answer
+    if [[ "$answer" =~ ^[Yy]$ ]]; then
+        sudo reboot
+    else
+        echo "Reboot skipped."
+        exit 0
+    fi
+}
+
+# Call the function to ask the user if they want to reboot
+ask_reboot
