@@ -211,8 +211,10 @@ fetch_ax_shell
 
 # Fetch my user configs
 fetch_my_configs() {
-    git clone INSTERT
-    ./path/to/installer
+    git clone https://github.com/J4SP-R/abyssal-configs.git
+    cd $HOME/abyssal-configs
+    ./install-configs
+    cd $HOME
 }
 
 # Call user config fetch
