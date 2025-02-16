@@ -30,13 +30,12 @@ esac
 
 # Function to check if the script is run as sudo
 check_sudo() {
-    if [ "$EUID" -ne 0 ]; then
-        echo "This script must be run as root. Please re-run the program as sudo."
+    if [ "$EUID" -eq 0 ]; then
+        echo "This script must be NOT be run as root. Please re-run the program as USER."
         exit 1
     fi
 }
 
-# Call the function to check for sudo privileges
 check_sudo
 
 
@@ -46,19 +45,39 @@ sudo xbps-install -Sy void-repo-nonfree void-repo-multilib void-repo-multilib-no
 # Syncing repos and updating
 sudo xbps-install -Syu
 
-# Install GPU drivers
+# Function to install GPU drivers based on detected GPUs
 install_gpu_driver() {
-    gpu_driver=""
-    case "$(lspci | grep -E 'VGA|3D')" in
-        *Intel*) gpu_driver="mesa-dri intel-video-accel vulkan-loader mesa-vulkan-intel" ;;
-        *AMD*)   gpu_driver="mesa-dri mesa-vaapi mesa-vdpau vulkan-loader mesa-vulkan-radeon" ;;
-        *NVIDIA*)gpu_driver="mesa-dri nvidia nvidia-libs-32bit" ;;
-    esac
-    for pkg in $gpu_driver; do
-        [ -n "$pkg" ] && sudo xbps-install -Sy "$pkg"
-    done
+    # Array to hold GPU drivers
+    gpu_drivers=()
+
+    # Detect GPUs using lspci and grep for specific keywords
+    while IFS= read -r line; do
+        case "$line" in
+            *Intel*)
+                gpu_drivers+=("mesa-dri" "intel-video-accel" "vulkan-loader" "mesa-vulkan-intel")
+                ;;
+            *AMD* | *ATI*)
+                gpu_drivers+=("mesa-dri" "mesa-vaapi" "mesa-vdpau" "vulkan-loader" "mesa-vulkan-radeon")
+                ;;
+            *NVIDIA*)
+                gpu_drivers+=("mesa-dri" "nvidia" "nvidia-libs-32bit")
+                ;;
+        esac
+    done < <(lspci -k | grep -EA3 'VGA|3D|Display')
+
+    # Remove duplicate packages
+    gpu_drivers=($(printf "%s\n" "${gpu_drivers[@]}" | sort -u))
+
+    # Install the detected GPU drivers
+    if [ ${#gpu_drivers[@]} -eq 0 ]; then
+        echo "No GPU drivers detected for installation."
+    else
+        echo "Installing GPU drivers: ${gpu_drivers[*]}"
+        sudo xbps-install -Sy "${gpu_drivers[@]}"
+    fi
 }
 
+# Run the function to install GPU drivers
 install_gpu_driver
 
 
