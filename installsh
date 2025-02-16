@@ -13,7 +13,6 @@ check_internet() {
     else
         echo "Networking not properly configured. Aborting setup."
         exit 1
-        fi
     fi
 }
 
