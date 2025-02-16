@@ -47,3 +47,5 @@ vala
 libvala
 udevd
 rsync
+nwg-looks
+pavucontrol

@@ -245,6 +245,26 @@ enable_services() {
 enable_services
 
 
+# Function to append text to .zshrc
+append_to_zshrc() {
+    echo "$1" >> ~/.zshrc
+}
+
+# Append the y function to .zshrc
+append_to_zshrc 'function y() {
+        local tmp="$(mktemp -t \"yazi-cwd.XXXXXX\")" cwd
+        yazi "$@" --cwd-file="$tmp"
+        if cwd="$(command cat -- "$tmp")"; then
+                builtin cd -- "$cwd"
+        fi
+        rm -f -- "$tmp"
+}'
+
+# Append the export PATH statement to .zshrc
+append_to_zshrc 'export PATH="$HOME/scripts/bin:$PATH"'
+
+
+
 # Function to ask the user if they want to reboot now
 ask_reboot() {
     read -p "Do you want to reboot the system now? (y/n): " answer
@@ -255,6 +275,9 @@ ask_reboot() {
         exit 0
     fi
 }
+
+
+
 
 # Call the function to ask the user if they want to reboot
 ask_reboot
