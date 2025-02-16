@@ -49,3 +49,4 @@ udevd
 rsync
 nwg-looks
 pavucontrol
+nix

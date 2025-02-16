@@ -153,12 +153,13 @@ intel_cpu_microcode() {
 # Function to install packages listed in a file
 install_core_packages() {
     pkglist=$(paste -sd' ' < packages.txt)
-    sudo xbps-install -Sy "$pkglist" || echo "Failed to install some packages"
+    sudo xbps-install -Sy $pkglist || echo "Failed to install some packages"
 }
 
 # Call the function to install the packages
 install_core_packages
 
+mkdir $HOME/.config
 
 # Enable and set up NIX package manager
 nix_setup() {
@@ -267,6 +268,8 @@ enable_services
 
 # Function to append text to .zshrc
 append_to_zshrc() {
+    chsh -s /bin/zsh jasp
+    touch .zshrc
     echo "$1" >> ~/.zshrc
 }
 
